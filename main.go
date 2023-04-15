@@ -31,6 +31,7 @@ func main() {
 	r.Get("/*", httpSwagger.WrapHandler)
 
 	initDB()
+	fmt.Println("Open http://localhost:3000")
 	http.ListenAndServe(":3000", r)
 }
 
