@@ -21,7 +21,9 @@ type Task struct {
 }
 
 func (task *Task) BeforeCreate(tx *gorm.DB) (err error) {
-	task.FinishTime = task.StartTime.Add(time.Duration(task.Duration))
+	duration := time.Duration(task.Duration-1) * time.Second
+	finishTime := task.StartTime.Add(duration)
+	task.FinishTime = finishTime
 	return
 }
 

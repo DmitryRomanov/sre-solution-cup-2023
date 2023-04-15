@@ -99,6 +99,15 @@ func handleAddTaskRequest(w http.ResponseWriter, r *http.Request) {
 	task.Type = p.Type
 	task.Priority = p.Priority
 
+	if task.Type == string(models.TASK_TYPE_AUTO) && haveTasks(task) {
+		w.WriteHeader(http.StatusLocked)
+		response := new(dto.AddTaskResponse)
+		response.Success = false
+		response.Message = "Task already exists"
+		writeResponse(w, response)
+		return
+	}
+
 	err = task.ValidateValues()
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -114,6 +123,14 @@ func handleAddTaskRequest(w http.ResponseWriter, r *http.Request) {
 	response.Success = true
 	response.Message = "Added"
 	writeResponse(w, response)
+}
+
+func haveTasks(newTask *models.Task) bool {
+	var tasks []models.Task
+	duration := time.Duration(newTask.Duration-1) * time.Second
+	finishTime := newTask.StartTime.Add(duration)
+	db.Debug().Where("(? BETWEEN start_time AND finish_time) OR (? BETWEEN start_time AND finish_time)", newTask.StartTime, finishTime).Find(&tasks)
+	return len(tasks) > 0
 }
 
 func writeResponse(w http.ResponseWriter, object interface{}) {
