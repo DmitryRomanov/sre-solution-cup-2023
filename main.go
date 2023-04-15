@@ -47,7 +47,7 @@ func initDB() {
 		panic("Failed to open the SQLite database.")
 	}
 
-	db.AutoMigrate(&models.Task{}, &models.AviabilityZone{})
+	db.AutoMigrate(&models.Task{}, &models.AviabilityZone{}, &models.CancelReason{})
 
 	azs := []models.AviabilityZone{
 		{Name: "msk-1a", DataCenter: "msk-1", BlockedForAutomatedTask: false},
@@ -87,6 +87,7 @@ func handleAddTaskRequest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	task := new(models.Task)
+	task.Status = models.TASK_STATUS_WAITING
 	task.AviabilityZone = p.AviabilityZone
 	task.Duration = p.Duration
 
@@ -102,8 +103,9 @@ func handleAddTaskRequest(w http.ResponseWriter, r *http.Request) {
 	task.Priority = p.Priority
 
 	mu.Lock()
+	defer mu.Unlock()
 
-	if task.Type == string(models.TASK_TYPE_AUTO) && haveTasks(task) {
+	if task.Type == models.TASK_TYPE_AUTO && haveTasks(task) {
 		w.WriteHeader(http.StatusLocked)
 		response := new(dto.AddTaskResponse)
 		response.Success = false
@@ -123,20 +125,16 @@ func handleAddTaskRequest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if task.Type == string(models.TASK_TYPE_MANUAL) {
-		db.Transaction(func(tx *gorm.DB) error {
-			// отменить автоматические работы
-			cancelAutoTasks(task)
+		// отменить автоматические работы
+		cancelAutoTasks(task)
 
-			// критическая
-			if task.Priority == string(models.TASK_PRIORITY_CRITICAL) {
-				cancelManualTasksWithNormalPriority(task)
-			}
-			return nil
-		})
+		// критическая
+		if task.Priority == string(models.TASK_PRIORITY_CRITICAL) {
+			cancelManualTasksWithNormalPriority(task)
+		}
 	}
 
 	db.Create(task)
-	mu.Unlock()
 
 	response := new(dto.AddTaskResponse)
 	response.Success = true
@@ -147,20 +145,63 @@ func handleAddTaskRequest(w http.ResponseWriter, r *http.Request) {
 func cancelAutoTasks(newTask *models.Task) {
 	duration := time.Duration(newTask.Duration-1) * time.Second
 	finishTime := newTask.StartTime.Add(duration)
-	db.Debug().Delete("aviability_zone = ? AND type = ? AND ((? BETWEEN start_time AND finish_time) OR (? BETWEEN start_time AND finish_time))", newTask.AviabilityZone, string(models.TASK_TYPE_AUTO), newTask.StartTime, finishTime)
+
+	var tasks []models.Task
+
+	db.Debug().Where(
+		"aviability_zone = ? AND type = ? AND status = ? AND ((? BETWEEN start_time AND finish_time) OR (? BETWEEN start_time AND finish_time))",
+		newTask.AviabilityZone,
+		models.TASK_TYPE_AUTO,
+		models.TASK_STATUS_WAITING,
+		newTask.StartTime,
+		finishTime,
+	).Find(&tasks)
+	for i := range tasks {
+		cancelTask(tasks[i], fmt.Sprintf("cancelAutoTasks by task %v", newTask))
+	}
 }
 
 func cancelManualTasksWithNormalPriority(newTask *models.Task) {
 	duration := time.Duration(newTask.Duration-1) * time.Second
 	finishTime := newTask.StartTime.Add(duration)
-	db.Debug().Delete("aviability_zone = ? AND type = ? AND priority = ? AND ((? BETWEEN start_time AND finish_time) OR (? BETWEEN start_time AND finish_time))", newTask.AviabilityZone, string(models.TASK_TYPE_MANUAL), string(models.TASK_PRIORITY_NORMAL), newTask.StartTime, finishTime)
+
+	var tasks []models.Task
+
+	db.Debug().Where(
+		"aviability_zone = ? AND type = ? AND priority = ? AND status = ? AND ((? BETWEEN start_time AND finish_time) OR (? BETWEEN start_time AND finish_time))",
+		newTask.AviabilityZone,
+		models.TASK_TYPE_MANUAL,
+		models.TASK_PRIORITY_NORMAL,
+		models.TASK_STATUS_WAITING,
+		newTask.StartTime,
+		finishTime,
+	).Find(&tasks)
+	for i := range tasks {
+		cancelTask(tasks[i], fmt.Sprintf("cancelManualTasksWithNormalPriority by task %v", newTask))
+	}
+}
+
+func cancelTask(task models.Task, reason string) {
+	cancelReason := new(models.CancelReason)
+	cancelReason.CancelTime = time.Now()
+	cancelReason.Reason = reason
+	cancelReason.TaskID = task.ID
+	db.Create(cancelReason)
+
+	db.Model(models.Task{}).Where("id = ?", task.ID).Update("status", models.TASK_STATUS_CANCELED)
 }
 
 func haveTasks(newTask *models.Task) bool {
 	var tasks []models.Task
 	duration := time.Duration(newTask.Duration-1) * time.Second
 	finishTime := newTask.StartTime.Add(duration)
-	db.Debug().Where("aviability_zone = ? AND ((? BETWEEN start_time AND finish_time) OR (? BETWEEN start_time AND finish_time))", newTask.AviabilityZone, newTask.StartTime, finishTime).Find(&tasks)
+	db.Debug().Where(
+		"aviability_zone = ? AND status = ? AND ((? BETWEEN start_time AND finish_time) OR (? BETWEEN start_time AND finish_time))",
+		newTask.AviabilityZone,
+		models.TASK_STATUS_WAITING,
+		newTask.StartTime,
+		finishTime,
+	).Find(&tasks)
 	return len(tasks) > 0
 }
 
