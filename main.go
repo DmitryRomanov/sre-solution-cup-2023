@@ -129,7 +129,7 @@ func haveTasks(newTask *models.Task) bool {
 	var tasks []models.Task
 	duration := time.Duration(newTask.Duration-1) * time.Second
 	finishTime := newTask.StartTime.Add(duration)
-	db.Debug().Where("(? BETWEEN start_time AND finish_time) OR (? BETWEEN start_time AND finish_time)", newTask.StartTime, finishTime).Find(&tasks)
+	db.Debug().Where("aviability_zone = ? AND ((? BETWEEN start_time AND finish_time) OR (? BETWEEN start_time AND finish_time))", newTask.AviabilityZone, newTask.StartTime, finishTime).Find(&tasks)
 	return len(tasks) > 0
 }
 
