@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	_ "github.com/DmitryRomanov/sre-solution-cup-2023/docs"
@@ -36,6 +37,7 @@ func main() {
 
 var (
 	db *gorm.DB
+	mu sync.Mutex
 )
 
 func initDB() {
@@ -99,6 +101,8 @@ func handleAddTaskRequest(w http.ResponseWriter, r *http.Request) {
 	task.Type = p.Type
 	task.Priority = p.Priority
 
+	mu.Lock()
+
 	if task.Type == string(models.TASK_TYPE_AUTO) && haveTasks(task) {
 		w.WriteHeader(http.StatusLocked)
 		response := new(dto.AddTaskResponse)
@@ -119,11 +123,21 @@ func handleAddTaskRequest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if task.Type == string(models.TASK_TYPE_MANUAL) {
-		// отменить автоматические работы
-		cancelAutoTasks(task)
+		db.Transaction(func(tx *gorm.DB) error {
+			// отменить автоматические работы
+			cancelAutoTasks(task)
+
+			// критическая
+			if task.Priority == string(models.TASK_PRIORITY_CRITICAL) {
+				cancelManualTasksWithNormalPriority(task)
+			}
+			return nil
+		})
 	}
 
 	db.Create(task)
+	mu.Unlock()
+
 	response := new(dto.AddTaskResponse)
 	response.Success = true
 	response.Message = "Added"
@@ -133,7 +147,13 @@ func handleAddTaskRequest(w http.ResponseWriter, r *http.Request) {
 func cancelAutoTasks(newTask *models.Task) {
 	duration := time.Duration(newTask.Duration-1) * time.Second
 	finishTime := newTask.StartTime.Add(duration)
-	db.Debug().Delete("aviability_zone = ? AND type = ? AND ((? BETWEEN start_time AND finish_time) OR (? BETWEEN start_time AND finish_time))", newTask.AviabilityZone, models.TASK_TYPE_AUTO, newTask.StartTime, finishTime)
+	db.Debug().Delete("aviability_zone = ? AND type = ? AND ((? BETWEEN start_time AND finish_time) OR (? BETWEEN start_time AND finish_time))", newTask.AviabilityZone, string(models.TASK_TYPE_AUTO), newTask.StartTime, finishTime)
+}
+
+func cancelManualTasksWithNormalPriority(newTask *models.Task) {
+	duration := time.Duration(newTask.Duration-1) * time.Second
+	finishTime := newTask.StartTime.Add(duration)
+	db.Debug().Delete("aviability_zone = ? AND type = ? AND priority = ? AND ((? BETWEEN start_time AND finish_time) OR (? BETWEEN start_time AND finish_time))", newTask.AviabilityZone, string(models.TASK_TYPE_MANUAL), string(models.TASK_PRIORITY_NORMAL), newTask.StartTime, finishTime)
 }
 
 func haveTasks(newTask *models.Task) bool {
