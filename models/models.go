@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 type Task struct {
@@ -13,8 +15,14 @@ type Task struct {
 	Type           string `json:"type"`
 	Priority       string `json:"priority"`
 	StartTime      time.Time
+	FinishTime     time.Time
 	Duration       int
 	Deadline       time.Time
+}
+
+func (task *Task) BeforeCreate(tx *gorm.DB) (err error) {
+	task.FinishTime = task.StartTime.Add(time.Duration(task.Duration))
+	return
 }
 
 func (task *Task) ValidateValues() error {
