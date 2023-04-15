@@ -87,6 +87,7 @@ func handleAddTaskRequest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	task := new(models.Task)
+	task.Status = models.TASK_STATUS_WAITING
 	task.AviabilityZone = p.AviabilityZone
 	task.Duration = p.Duration
 
@@ -147,20 +148,41 @@ func handleAddTaskRequest(w http.ResponseWriter, r *http.Request) {
 func cancelAutoTasks(newTask *models.Task) {
 	duration := time.Duration(newTask.Duration-1) * time.Second
 	finishTime := newTask.StartTime.Add(duration)
-	db.Debug().Delete("aviability_zone = ? AND type = ? AND ((? BETWEEN start_time AND finish_time) OR (? BETWEEN start_time AND finish_time))", newTask.AviabilityZone, string(models.TASK_TYPE_AUTO), newTask.StartTime, finishTime)
+	db.Debug().Delete(
+		"aviability_zone = ? AND type = ? AND status = ? AND ((? BETWEEN start_time AND finish_time) OR (? BETWEEN start_time AND finish_time))",
+		newTask.AviabilityZone,
+		models.TASK_TYPE_AUTO,
+		models.TASK_STATUS_WAITING,
+		newTask.StartTime,
+		finishTime,
+	)
 }
 
 func cancelManualTasksWithNormalPriority(newTask *models.Task) {
 	duration := time.Duration(newTask.Duration-1) * time.Second
 	finishTime := newTask.StartTime.Add(duration)
-	db.Debug().Delete("aviability_zone = ? AND type = ? AND priority = ? AND ((? BETWEEN start_time AND finish_time) OR (? BETWEEN start_time AND finish_time))", newTask.AviabilityZone, string(models.TASK_TYPE_MANUAL), string(models.TASK_PRIORITY_NORMAL), newTask.StartTime, finishTime)
+	db.Debug().Delete(
+		"aviability_zone = ? AND type = ? AND priority = ? AND status = ? ((? BETWEEN start_time AND finish_time) OR (? BETWEEN start_time AND finish_time))",
+		newTask.AviabilityZone,
+		models.TASK_TYPE_MANUAL,
+		models.TASK_PRIORITY_NORMAL,
+		models.TASK_STATUS_WAITING,
+		newTask.StartTime,
+		finishTime,
+	)
 }
 
 func haveTasks(newTask *models.Task) bool {
 	var tasks []models.Task
 	duration := time.Duration(newTask.Duration-1) * time.Second
 	finishTime := newTask.StartTime.Add(duration)
-	db.Debug().Where("aviability_zone = ? AND ((? BETWEEN start_time AND finish_time) OR (? BETWEEN start_time AND finish_time))", newTask.AviabilityZone, newTask.StartTime, finishTime).Find(&tasks)
+	db.Debug().Where(
+		"aviability_zone = ? AND status = ? ((? BETWEEN start_time AND finish_time) OR (? BETWEEN start_time AND finish_time))",
+		newTask.AviabilityZone,
+		models.TASK_STATUS_WAITING,
+		newTask.StartTime,
+		finishTime,
+	).Find(&tasks)
 	return len(tasks) > 0
 }
 
