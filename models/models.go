@@ -1,6 +1,7 @@
 package models
 
 import (
+	"errors"
 	"time"
 )
 
@@ -13,6 +14,14 @@ type Task struct {
 	StartTime      time.Time
 	Duration       int
 	Deadline       time.Time
+}
+
+func (task *Task) ValidateValues() error {
+	if task.Priority == string(TASK_PRIORITY_CRITICAL) && task.Type == string(TASK_TYPE_MANUAL) {
+		return errors.New("приоритет critical (может выставляться только для типа manual)")
+	}
+
+	return nil
 }
 
 type AviabilityZone struct {

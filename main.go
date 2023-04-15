@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"time"
 
@@ -70,13 +69,18 @@ func initDB() {
 // @Produce  json
 // @Param request body dto.AddTaskRequest true "task info"
 // @Success 200 {object} dto.AddTaskResponse
-// @Success 500 {object} dto.AddTaskResponse
+// @Success 400 {object} dto.AddTaskResponse
 // @Router /task/add [post]
 func handleAddTaskRequest(w http.ResponseWriter, r *http.Request) {
 	var p dto.AddTaskRequest
 	err := json.NewDecoder(r.Body).Decode(&p)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		w.WriteHeader(http.StatusBadRequest)
+		w.Header().Set("Content-Type", "application/json")
+		response := new(dto.AddTaskResponse)
+		response.Success = false
+		response.Message = err.Error()
+		writeResponse(w, response)
 		return
 	}
 
@@ -95,7 +99,27 @@ func handleAddTaskRequest(w http.ResponseWriter, r *http.Request) {
 	task.Type = p.Type
 	task.Priority = p.Priority
 
+	err = task.ValidateValues()
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		response := new(dto.AddTaskResponse)
+		response.Success = false
+		response.Message = err.Error()
+		writeResponse(w, response)
+		return
+	}
+
 	db.Create(task)
+	response := new(dto.AddTaskResponse)
+	response.Success = true
+	response.Message = "Added"
+	writeResponse(w, response)
+}
+
+func writeResponse(w http.ResponseWriter, object interface{}) {
+	js, _ := json.Marshal(object)
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(js)
 }
 
 // @Summary Список задач
@@ -106,14 +130,7 @@ func handleAddTaskRequest(w http.ResponseWriter, r *http.Request) {
 func handleTasksListRequest(w http.ResponseWriter, r *http.Request) {
 	var tasks []models.Task
 	db.Debug().Find(&tasks)
-	js, err := json.Marshal(tasks)
-	if nil != err {
-		log.Panicf("Can not marshall response %v", tasks)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.Write(js)
+	writeResponse(w, tasks)
 }
 
 // @Summary Список зон доступности
@@ -124,14 +141,7 @@ func handleTasksListRequest(w http.ResponseWriter, r *http.Request) {
 func handleAzListRequest(w http.ResponseWriter, r *http.Request) {
 	var azs []models.AviabilityZone
 	db.Debug().Find(&azs)
-	js, err := json.Marshal(azs)
-	if nil != err {
-		log.Panicf("Can not marshall response %v", azs)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.Write(js)
+	writeResponse(w, azs)
 }
 
 func handleRootRequest(w http.ResponseWriter, r *http.Request) {
