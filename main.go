@@ -2,10 +2,13 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
+	"time"
 
 	_ "github.com/DmitryRomanov/sre-solution-cup-2023/docs"
+	"github.com/DmitryRomanov/sre-solution-cup-2023/dto"
 	"github.com/DmitryRomanov/sre-solution-cup-2023/models"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -22,7 +25,8 @@ func main() {
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 	r.Get("/", handleRootRequest)
-	r.Post("/add_task", handleAddTaskRequest)
+	r.Post("/task/add", handleAddTaskRequest)
+	r.Get("/task/list", handleTasksListRequest)
 	r.Get("/az/list", handleAzListRequest)
 	r.Get("/*", httpSwagger.WrapHandler)
 
@@ -44,32 +48,75 @@ func initDB() {
 	db.AutoMigrate(&models.Task{}, &models.AviabilityZone{})
 
 	azs := []models.AviabilityZone{
-		{ID: 1, Name: "msk-1a", DataCenter: "msk-1", BlockedForAutomatedTask: false},
-		{ID: 2, Name: "msk-1b", DataCenter: "msk-1", BlockedForAutomatedTask: false},
-		{ID: 3, Name: "msk-1c", DataCenter: "msk-1", BlockedForAutomatedTask: true},
+		{Name: "msk-1a", DataCenter: "msk-1", BlockedForAutomatedTask: false},
+		{Name: "msk-1b", DataCenter: "msk-1", BlockedForAutomatedTask: false},
+		{Name: "msk-1c", DataCenter: "msk-1", BlockedForAutomatedTask: true},
 
-		{ID: 4, Name: "msk-2a", DataCenter: "msk-2", BlockedForAutomatedTask: true},
-		{ID: 5, Name: "msk-2b", DataCenter: "msk-2", BlockedForAutomatedTask: false},
-		{ID: 6, Name: "msk-2c", DataCenter: "msk-2", BlockedForAutomatedTask: false},
+		{Name: "msk-2a", DataCenter: "msk-2", BlockedForAutomatedTask: true},
+		{Name: "msk-2b", DataCenter: "msk-2", BlockedForAutomatedTask: false},
+		{Name: "msk-2c", DataCenter: "msk-2", BlockedForAutomatedTask: false},
 
-		{ID: 7, Name: "nsk-1a", DataCenter: "nsk-1", BlockedForAutomatedTask: false},
-		{ID: 8, Name: "nsk-1b", DataCenter: "nsk-1", BlockedForAutomatedTask: false},
-		{ID: 9, Name: "nsk-1c", DataCenter: "nsk-1", BlockedForAutomatedTask: false},
+		{Name: "nsk-1a", DataCenter: "nsk-1", BlockedForAutomatedTask: false},
+		{Name: "nsk-1b", DataCenter: "nsk-1", BlockedForAutomatedTask: false},
+		{Name: "nsk-1c", DataCenter: "nsk-1", BlockedForAutomatedTask: false},
 	}
 
 	db.Create(azs)
 }
 
 // @Summary Добавить задачу
+// @Tags     tasks
 // @Produce  json
 // @Param request body dto.AddTaskRequest true "task info"
 // @Success 200 {object} dto.AddTaskResponse
-// @Router /add_task [post]
+// @Success 500 {object} dto.AddTaskResponse
+// @Router /task/add [post]
 func handleAddTaskRequest(w http.ResponseWriter, r *http.Request) {
+	var p dto.AddTaskRequest
+	err := json.NewDecoder(r.Body).Decode(&p)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 
+	task := new(models.Task)
+	task.AviabilityZone = p.AviabilityZone
+	task.Duration = p.Duration
+
+	startTime, err := time.Parse(time.DateTime, p.StartTime)
+	fmt.Println(err)
+	task.StartTime = startTime
+
+	deadline, err := time.Parse(time.DateTime, p.Deadline)
+	fmt.Println(err)
+	task.Deadline = deadline
+
+	task.Type = p.Type
+	task.Priority = p.Priority
+
+	db.Create(task)
+}
+
+// @Summary Список задач
+// @Tags     tasks
+// @Produce  json
+// @Success 200 {object} []models.Task
+// @Router /task/list [get]
+func handleTasksListRequest(w http.ResponseWriter, r *http.Request) {
+	var tasks []models.Task
+	db.Debug().Find(&tasks)
+	js, err := json.Marshal(tasks)
+	if nil != err {
+		log.Panicf("Can not marshall response %v", tasks)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(js)
 }
 
 // @Summary Список зон доступности
+// @Tags     az
 // @Produce  json
 // @Success 200 {object} []models.AviabilityZone
 // @Router /az/list [get]

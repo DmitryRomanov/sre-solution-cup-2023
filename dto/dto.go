@@ -1,13 +1,12 @@
 package dto
 
 type AddTaskRequest struct {
-	Name           string `json:"name"`
-	AviabilityZone string `json:"aviability_zone"`
-	Type           string `json:"type"`
-	Priority       string `json:"priority"`
-	StartTime      string `json:"strat_time"`
-	Duration       int
-	Deadline       string `json:"deadline"`
+	AviabilityZone string `json:"aviability_zone"  example:"msk-1a"`
+	Type           string `json:"type" example:"manual"`
+	Priority       string `json:"priority" example:"normal"`
+	StartTime      string `json:"start_time" example:"2023-04-15 11:00:00"`
+	Duration       int    `json:"duration" example:"600"`
+	Deadline       string `json:"deadline" example:"2023-04-16 11:00:00"`
 }
 
 type AddTaskResponse struct {
