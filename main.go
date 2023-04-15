@@ -118,11 +118,22 @@ func handleAddTaskRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if task.Type == string(models.TASK_TYPE_MANUAL) {
+		// отменить автоматические работы
+		cancelAutoTasks(task)
+	}
+
 	db.Create(task)
 	response := new(dto.AddTaskResponse)
 	response.Success = true
 	response.Message = "Added"
 	writeResponse(w, response)
+}
+
+func cancelAutoTasks(newTask *models.Task) {
+	duration := time.Duration(newTask.Duration-1) * time.Second
+	finishTime := newTask.StartTime.Add(duration)
+	db.Debug().Delete("aviability_zone = ? AND type = ? AND ((? BETWEEN start_time AND finish_time) OR (? BETWEEN start_time AND finish_time))", newTask.AviabilityZone, models.TASK_TYPE_AUTO, newTask.StartTime, finishTime)
 }
 
 func haveTasks(newTask *models.Task) bool {
