@@ -26,6 +26,7 @@ func main() {
 	r.Use(middleware.Logger)
 	r.Get("/", handleRootRequest)
 	r.Post("/task/add", handleAddTaskRequest)
+	r.Post("/task/cancel/{task_id}", handleCancelTaskRequest)
 	r.Get("/task/list", handleTasksListRequest)
 	r.Get("/az/list", handleAzListRequest)
 	r.Get("/*", httpSwagger.WrapHandler)
@@ -79,7 +80,7 @@ func handleAddTaskRequest(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		w.Header().Set("Content-Type", "application/json")
-		response := new(dto.AddTaskResponse)
+		response := new(dto.MessageResponse)
 		response.Success = false
 		response.Message = err.Error()
 		writeResponse(w, response)
@@ -107,7 +108,7 @@ func handleAddTaskRequest(w http.ResponseWriter, r *http.Request) {
 
 	if task.Type == models.TASK_TYPE_AUTO && haveTasks(task) {
 		w.WriteHeader(http.StatusLocked)
-		response := new(dto.AddTaskResponse)
+		response := new(dto.MessageResponse)
 		response.Success = false
 		response.Message = "Task already exists"
 		writeResponse(w, response)
@@ -117,7 +118,7 @@ func handleAddTaskRequest(w http.ResponseWriter, r *http.Request) {
 	err = task.ValidateValues()
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		response := new(dto.AddTaskResponse)
+		response := new(dto.MessageResponse)
 		response.Success = false
 		response.Message = err.Error()
 		writeResponse(w, response)
@@ -136,7 +137,7 @@ func handleAddTaskRequest(w http.ResponseWriter, r *http.Request) {
 
 	db.Create(task)
 
-	response := new(dto.AddTaskResponse)
+	response := new(dto.MessageResponse)
 	response.Success = true
 	response.Message = "Added"
 	writeResponse(w, response)
@@ -220,6 +221,25 @@ func handleTasksListRequest(w http.ResponseWriter, r *http.Request) {
 	var tasks []models.Task
 	db.Debug().Find(&tasks)
 	writeResponse(w, tasks)
+}
+
+// @Summary Отменить задачу
+// @Tags     tasks
+// @Produce  json
+// @Param task_id path int true "id задачи"
+// @Success 200 {object} []models.Task
+// @Router /task/cancel/{task_id} [post]
+func handleCancelTaskRequest(w http.ResponseWriter, r *http.Request) {
+	taskID := chi.URLParam(r, "task_id")
+	var task models.Task
+	db.Debug().First(&task, taskID)
+
+	cancelTask(task, "Ручная отмена")
+
+	response := new(dto.MessageResponse)
+	response.Success = true
+	response.Message = "Canceled"
+	writeResponse(w, response)
 }
 
 // @Summary Список зон доступности
