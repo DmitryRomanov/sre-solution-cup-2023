@@ -162,9 +162,22 @@ func validAZ(task *models.Task) bool {
 	return false
 }
 
-func getAvaiableWindow(newtTask *models.Task, windows []models.MaintenanceWindows, tasks []models.Task) []time.Time {
+func getAvaiableWindows(newtTask *models.Task, windows []models.MaintenanceWindows, tasks []models.Task) []time.Time {
+	// TODO: отсортировать задачи по времени окончания
 	result := []time.Time{}
 	for i, task := range tasks {
+		if i == 0 {
+			for _, window := range windows {
+				duration := time.Duration(newtTask.Duration) * time.Second
+				finishTime := newtTask.StartTime.Add(duration)
+
+				windowStartTime := time.Date(task.StartTime.Year(), task.StartTime.Month(), task.StartTime.Day(), window.Start, 0, 0, task.StartTime.Nanosecond(), task.StartTime.Location())
+
+				if window.Start >= newtTask.StartTime.Hour() && finishTime.Hour() <= window.End {
+					result = append(result, windowStartTime)
+				}
+			}
+		}
 		if i > 0 {
 			currentStartTime := task.StartTime
 			prevFinishTime := tasks[i-1].FinishTime
@@ -172,6 +185,7 @@ func getAvaiableWindow(newtTask *models.Task, windows []models.MaintenanceWindow
 				result = append(result, tasks[i-1].FinishTime.Add(time.Second))
 			}
 		}
+		// TODO: посмотреть доступные окна
 	}
 	return result
 }

@@ -18,7 +18,7 @@ func TestGetAvaiableWindow1(t *testing.T) {
 	now := time.Now()
 	tasks := []models.Task{
 		{
-			StartTime:  time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, now.Nanosecond(), now.Location()),
+			StartTime:  time.Date(now.Year(), now.Month(), now.Day(), 1, 30, 0, now.Nanosecond(), now.Location()),
 			FinishTime: time.Date(now.Year(), now.Month(), now.Day(), 2, 0, 0, now.Nanosecond(), now.Location()),
 		},
 		{
@@ -32,12 +32,16 @@ func TestGetAvaiableWindow1(t *testing.T) {
 	}
 
 	task := new(models.Task)
-	task.StartTime = time.Date(now.Year(), now.Month(), now.Day(), 1, 0, 0, now.Nanosecond(), now.Location())
-	task.Duration = 3600
+	task.StartTime = time.Date(now.Year(), now.Month(), now.Day(), 0, 10, 0, now.Nanosecond(), now.Location())
+	task.Duration = 2000
 
-	result := getAvaiableWindow(task, windows, tasks)
+	result := getAvaiableWindows(task, windows, tasks)
+	assert.Equal(
+		time.Date(now.Year(), now.Month(), now.Day(), 0, 00, 0, now.Nanosecond(), now.Location()),
+		result[0],
+	)
 	assert.Equal(
 		time.Date(now.Year(), now.Month(), now.Day(), 2, 30, 1, now.Nanosecond(), now.Location()),
-		result[0],
+		result[1],
 	)
 }
