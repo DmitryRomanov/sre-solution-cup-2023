@@ -162,6 +162,20 @@ func validAZ(task *models.Task) bool {
 	return false
 }
 
+func getAvaiableWindow(newtTask *models.Task, windows []models.MaintenanceWindows, tasks []models.Task) []time.Time {
+	result := []time.Time{}
+	for i, task := range tasks {
+		if i > 0 {
+			currentStartTime := task.StartTime
+			prevFinishTime := tasks[i-1].FinishTime
+			if currentStartTime.Sub(prevFinishTime).Seconds() > float64(newtTask.Duration) {
+				result = append(result, tasks[i-1].FinishTime.Add(time.Second))
+			}
+		}
+	}
+	return result
+}
+
 func checkWindowMaintenance(task *models.Task, windows []models.MaintenanceWindows) bool {
 	for _, window := range windows {
 		if task.StartTime.Format(time.DateOnly) == task.FinishTime.Format(time.DateOnly) {
