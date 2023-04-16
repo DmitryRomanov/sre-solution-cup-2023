@@ -10,8 +10,6 @@ import (
 	_ "github.com/DmitryRomanov/sre-solution-cup-2023/docs"
 	"github.com/DmitryRomanov/sre-solution-cup-2023/dto"
 	"github.com/DmitryRomanov/sre-solution-cup-2023/models"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -37,55 +35,8 @@ func main() {
 }
 
 var (
-	db *gorm.DB
 	mu sync.Mutex
 )
-
-func initDB() {
-	var err error
-	db, err = gorm.Open(sqlite.Open("gorm.db"), &gorm.Config{})
-	if err != nil {
-		panic("Failed to open the SQLite database.")
-	}
-
-	db.AutoMigrate(
-		&models.Task{}, &models.AviabilityZone{}, &models.CancelReason{},
-		&models.MaintenanceWindows{},
-	)
-
-	azs := []models.AviabilityZone{
-		{Name: "msk-1a", DataCenter: "msk-1", BlockedForAutomatedTask: false},
-		{Name: "msk-1b", DataCenter: "msk-1", BlockedForAutomatedTask: false},
-		{Name: "msk-1c", DataCenter: "msk-1", BlockedForAutomatedTask: true},
-
-		{Name: "msk-2a", DataCenter: "msk-2", BlockedForAutomatedTask: true},
-		{Name: "msk-2b", DataCenter: "msk-2", BlockedForAutomatedTask: false},
-		{Name: "msk-2c", DataCenter: "msk-2", BlockedForAutomatedTask: false},
-
-		{Name: "nsk-1a", DataCenter: "nsk-1", BlockedForAutomatedTask: false},
-		{Name: "nsk-1b", DataCenter: "nsk-1", BlockedForAutomatedTask: false},
-		{Name: "nsk-1c", DataCenter: "nsk-1", BlockedForAutomatedTask: false},
-	}
-
-	db.Create(azs)
-
-	maintenanceWindows := []models.MaintenanceWindows{
-		{AviabilityZone: "msk-1a", Start: 0, End: 5},
-		{AviabilityZone: "msk-1a", Start: 21, End: 24},
-
-		{AviabilityZone: "msk-1b", Start: 0, End: 24},
-		{AviabilityZone: "msk-1c", Start: 23, End: 24},
-
-		{AviabilityZone: "msk-2a", Start: 0, End: 6},
-		{AviabilityZone: "msk-2b", Start: 0, End: 6},
-		{AviabilityZone: "msk-2c", Start: 0, End: 6},
-
-		{AviabilityZone: "nsk-1a", Start: 4, End: 10},
-		{AviabilityZone: "nsk-1b", Start: 4, End: 10},
-		{AviabilityZone: "nsk-1c", Start: 4, End: 10},
-	}
-	db.Create(maintenanceWindows)
-}
 
 // @Summary Добавить задачу
 // @Tags     tasks
@@ -188,45 +139,6 @@ func handleAddTaskRequest(w http.ResponseWriter, r *http.Request) {
 	writeResponse(w, response)
 }
 
-func cancelAutoTasks(newTask *models.Task) {
-	duration := time.Duration(newTask.Duration-1) * time.Second
-	finishTime := newTask.StartTime.Add(duration)
-
-	var tasks []models.Task
-
-	db.Debug().Where(
-		"aviability_zone = ? AND type = ? AND status = ? AND ((? BETWEEN start_time AND finish_time) OR (? BETWEEN start_time AND finish_time))",
-		newTask.AviabilityZone,
-		models.TASK_TYPE_AUTO,
-		models.TASK_STATUS_WAITING,
-		newTask.StartTime,
-		finishTime,
-	).Find(&tasks)
-	for i := range tasks {
-		cancelTask(tasks[i], fmt.Sprintf("cancelAutoTasks by task %v", newTask))
-	}
-}
-
-func cancelManualTasksWithNormalPriority(newTask *models.Task) {
-	duration := time.Duration(newTask.Duration-1) * time.Second
-	finishTime := newTask.StartTime.Add(duration)
-
-	var tasks []models.Task
-
-	db.Debug().Where(
-		"aviability_zone = ? AND type = ? AND priority = ? AND status = ? AND ((? BETWEEN start_time AND finish_time) OR (? BETWEEN start_time AND finish_time))",
-		newTask.AviabilityZone,
-		models.TASK_TYPE_MANUAL,
-		models.TASK_PRIORITY_NORMAL,
-		models.TASK_STATUS_WAITING,
-		newTask.StartTime,
-		finishTime,
-	).Find(&tasks)
-	for i := range tasks {
-		cancelTask(tasks[i], fmt.Sprintf("cancelManualTasksWithNormalPriority by task %v", newTask))
-	}
-}
-
 func validAZ(task *models.Task) bool {
 	var az models.AviabilityZone
 	result := db.Model(models.AviabilityZone{}).Where("name = ?", task.AviabilityZone).First(&az)
@@ -271,16 +183,6 @@ func checkWindowMaintenance(task *models.Task, windows []models.MaintenanceWindo
 	}
 
 	return false
-}
-
-func cancelTask(task models.Task, reason string) {
-	cancelReason := new(models.CancelReason)
-	cancelReason.CancelTime = time.Now()
-	cancelReason.Reason = reason
-	cancelReason.TaskID = task.ID
-	db.Create(cancelReason)
-
-	db.Model(models.Task{}).Where("id = ?", task.ID).Update("status", models.TASK_STATUS_CANCELED)
 }
 
 func haveTasks(newTask *models.Task) bool {
