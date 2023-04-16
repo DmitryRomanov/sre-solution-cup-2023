@@ -123,6 +123,10 @@ func handleAddTaskRequest(w http.ResponseWriter, r *http.Request) {
 	task.Type = p.Type
 	task.Priority = p.Priority
 
+	duration := time.Duration(task.Duration-1) * time.Second
+	finishTime := task.StartTime.Add(duration)
+	task.FinishTime = finishTime
+
 	mu.Lock()
 	defer mu.Unlock()
 
@@ -241,11 +245,29 @@ func validAZ(task *models.Task) bool {
 
 func checkWindowMaintenance(task *models.Task, windows []models.MaintenanceWindows) bool {
 	for _, window := range windows {
-		if task.StartTime.Format(time.DateTime) == task.FinishTime.Format(time.DateTime) {
+		if task.StartTime.Format(time.DateOnly) == task.FinishTime.Format(time.DateOnly) {
 			if task.StartTime.Hour() >= window.Start && task.FinishTime.Hour() <= window.End {
 				return true
 			}
 		}
+	}
+
+	if task.FinishTime.Day()-task.StartTime.Day() == 1 && task.FinishTime.Sub(task.StartTime).Hours() < 12 {
+		//разные сутки
+		existsAtBegin := false
+		existsAtEnd := false
+
+		//проверить разрыв в сутках
+		for _, window := range windows {
+			if window.Start == 0 {
+				existsAtBegin = true
+			}
+			if window.End == 24 {
+				existsAtEnd = true
+			}
+		}
+
+		return existsAtBegin && existsAtEnd
 	}
 
 	return false
