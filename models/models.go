@@ -10,7 +10,6 @@ import (
 
 type Task struct {
 	ID             uint   `gorm:"primarykey"`
-	Name           string `json:"name"`
 	Status         string `json:"status"`
 	AviabilityZone string `json:"aviability_zone"`
 	Type           string `json:"type"`

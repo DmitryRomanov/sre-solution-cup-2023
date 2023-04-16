@@ -9,7 +9,7 @@ type AddTaskRequest struct {
 	Deadline       string `json:"deadline" example:"2023-04-16 11:00:00"`
 }
 
-type AddTaskResponse struct {
+type MessageResponse struct {
 	Success bool   `json:"success"`
 	Message string `json:"message"`
 }
