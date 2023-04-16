@@ -27,6 +27,7 @@ func main() {
 	r.Post("/task/cancel/{task_id}", handleCancelTaskRequest)
 	r.Get("/task/list", handleTasksListRequest)
 	r.Get("/az/list", handleAzListRequest)
+	r.Get("/az/maintenance_windows", handleMaintenanceWindowsListRequest)
 	r.Get("/*", httpSwagger.WrapHandler)
 
 	initDB()
@@ -244,6 +245,17 @@ func handleAzListRequest(w http.ResponseWriter, r *http.Request) {
 	var azs []models.AviabilityZone
 	db.Debug().Find(&azs)
 	writeResponse(w, azs)
+}
+
+// @Summary Список окон обслуживания в зонах доступности
+// @Tags     az
+// @Produce  json
+// @Success 200 {object} []models.MaintenanceWindows
+// @Router /az/maintenance_windows [get]
+func handleMaintenanceWindowsListRequest(w http.ResponseWriter, r *http.Request) {
+	var windows []models.MaintenanceWindows
+	db.Debug().Find(&windows)
+	writeResponse(w, windows)
 }
 
 func handleRootRequest(w http.ResponseWriter, r *http.Request) {
