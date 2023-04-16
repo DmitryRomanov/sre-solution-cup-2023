@@ -219,7 +219,7 @@ func writeResponse(w http.ResponseWriter, object interface{}) {
 // @Router /task/list [get]
 func handleTasksListRequest(w http.ResponseWriter, r *http.Request) {
 	var tasks []models.Task
-	db.Debug().Find(&tasks)
+	db.Debug().Where("status = ?", models.TASK_STATUS_WAITING).Find(&tasks)
 	writeResponse(w, tasks)
 }
 
