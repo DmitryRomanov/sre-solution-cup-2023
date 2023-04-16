@@ -135,6 +135,15 @@ func handleAddTaskRequest(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if !validAZ(task) {
+		w.WriteHeader(http.StatusBadRequest)
+		response := new(dto.MessageResponse)
+		response.Success = false
+		response.Message = "Зона доступности недоступна"
+		writeResponse(w, response)
+		return
+	}
+
 	db.Create(task)
 
 	response := new(dto.MessageResponse)
@@ -180,6 +189,22 @@ func cancelManualTasksWithNormalPriority(newTask *models.Task) {
 	for i := range tasks {
 		cancelTask(tasks[i], fmt.Sprintf("cancelManualTasksWithNormalPriority by task %v", newTask))
 	}
+}
+
+func validAZ(task *models.Task) bool {
+	var az models.AviabilityZone
+	result := db.Model(models.AviabilityZone{}).Where("name = ?", task.AviabilityZone).First(&az)
+
+	if result.RowsAffected > 0 {
+		if az.BlockedForAutomatedTask && task.Priority != models.TASK_PRIORITY_CRITICAL {
+			// запрещены работы кроме критичных
+			return false
+		}
+
+		return true
+	}
+
+	return false
 }
 
 func cancelTask(task models.Task, reason string) {
