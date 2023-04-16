@@ -164,6 +164,18 @@ func handleAddTaskRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var windows []models.MaintenanceWindows
+	db.Debug().Model(models.MaintenanceWindows{}).Where("aviability_zone = ?", task.AviabilityZone).Find(&windows)
+
+	if !checkWindowMaintenance(task, windows) {
+		w.WriteHeader(http.StatusBadRequest)
+		response := new(dto.MessageResponse)
+		response.Success = false
+		response.Message = "Задача не поподает в окно обслуживания"
+		writeResponse(w, response)
+		return
+	}
+
 	db.Create(task)
 
 	response := new(dto.MessageResponse)
@@ -222,6 +234,18 @@ func validAZ(task *models.Task) bool {
 		}
 
 		return true
+	}
+
+	return false
+}
+
+func checkWindowMaintenance(task *models.Task, windows []models.MaintenanceWindows) bool {
+	for _, window := range windows {
+		if task.StartTime.Format(time.DateTime) == task.FinishTime.Format(time.DateTime) {
+			if task.StartTime.Hour() >= window.Start && task.FinishTime.Hour() <= window.End {
+				return true
+			}
+		}
 	}
 
 	return false
