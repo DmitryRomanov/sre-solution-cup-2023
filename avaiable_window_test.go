@@ -44,4 +44,9 @@ func TestGetAvaiableWindow1(t *testing.T) {
 		time.Date(now.Year(), now.Month(), now.Day(), 2, 30, 1, now.Nanosecond(), now.Location()),
 		result[1],
 	)
+	assert.Equal(
+		time.Date(now.Year(), now.Month(), now.Day(), 6, 00, 1, now.Nanosecond(), now.Location()),
+		result[2],
+	)
+	assert.Equal(3, len(result))
 }

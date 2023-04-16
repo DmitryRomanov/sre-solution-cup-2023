@@ -171,7 +171,7 @@ func getAvaiableWindows(newtTask *models.Task, windows []models.MaintenanceWindo
 				duration := time.Duration(newtTask.Duration) * time.Second
 				finishTime := newtTask.StartTime.Add(duration)
 
-				windowStartTime := time.Date(task.StartTime.Year(), task.StartTime.Month(), task.StartTime.Day(), window.Start, 0, 0, task.StartTime.Nanosecond(), task.StartTime.Location())
+				windowStartTime := time.Date(newtTask.StartTime.Year(), newtTask.StartTime.Month(), newtTask.StartTime.Day(), window.Start, 0, 0, newtTask.StartTime.Nanosecond(), newtTask.StartTime.Location())
 
 				if window.Start >= newtTask.StartTime.Hour() && finishTime.Hour() <= window.End {
 					result = append(result, windowStartTime)
@@ -185,7 +185,19 @@ func getAvaiableWindows(newtTask *models.Task, windows []models.MaintenanceWindo
 				result = append(result, tasks[i-1].FinishTime.Add(time.Second))
 			}
 		}
-		// TODO: посмотреть доступные окна
+
+		if i == len(tasks)-1 {
+			// после последней задачи в окне осталось окно
+			for _, window := range windows {
+				lastTaskFinishTime := tasks[i].FinishTime
+
+				windowFinishTime := time.Date(lastTaskFinishTime.Year(), lastTaskFinishTime.Month(), lastTaskFinishTime.Day(), window.End, 0, 0, lastTaskFinishTime.Nanosecond(), lastTaskFinishTime.Location())
+
+				if windowFinishTime.Sub(lastTaskFinishTime).Seconds() > float64(newtTask.Duration) {
+					result = append(result, lastTaskFinishTime.Add(time.Second))
+				}
+			}
+		}
 	}
 	return result
 }
