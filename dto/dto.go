@@ -1,5 +1,7 @@
 package dto
 
+import "time"
+
 type AddTaskRequest struct {
 	AviabilityZone string `json:"aviability_zone"  example:"msk-1a"`
 	Type           string `json:"type" example:"auto"`
@@ -12,4 +14,10 @@ type AddTaskRequest struct {
 type MessageResponse struct {
 	Success bool   `json:"success"`
 	Message string `json:"message"`
+}
+
+type MessageAvaiableSlotsResponse struct {
+	Success bool        `json:"success"`
+	Message string      `json:"message"`
+	Slots   []time.Time `json:"available_slots"`
 }

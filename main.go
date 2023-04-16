@@ -51,6 +51,7 @@ var (
 // @Param request body dto.AddTaskRequest true "task info"
 // @Success 200 {object} dto.MessageResponse
 // @Success 400 {object} dto.MessageResponse
+// @Success 423 {object} dto.MessageAvaiableSlotsResponse
 // @Router /task/add [post]
 func handleAddTaskRequest(w http.ResponseWriter, r *http.Request) {
 	var p dto.AddTaskRequest
@@ -88,11 +89,20 @@ func handleAddTaskRequest(w http.ResponseWriter, r *http.Request) {
 	mu.Lock()
 	defer mu.Unlock()
 
+	var windows []models.MaintenanceWindows
+	db.Debug().Model(models.MaintenanceWindows{}).Where("aviability_zone = ?", task.AviabilityZone).Find(&windows)
+
 	if task.Type == models.TASK_TYPE_AUTO && haveTasks(task) {
 		w.WriteHeader(http.StatusLocked)
-		response := new(dto.MessageResponse)
+		response := new(dto.MessageAvaiableSlotsResponse)
 		response.Success = false
 		response.Message = "Task already exists"
+
+		var tasks []models.Task
+		db.Debug().Model(models.Task{}).Where(
+			"aviability_zone = ? AND status = ?", task.AviabilityZone, models.TASK_STATUS_WAITING).Order("start_time").Find(&tasks)
+
+		response.Slots = getAvaiableWindows(task, windows, tasks)
 		writeResponse(w, response)
 		return
 	}
@@ -107,12 +117,12 @@ func handleAddTaskRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if task.Type == string(models.TASK_TYPE_MANUAL) {
+	if task.Type == models.TASK_TYPE_MANUAL {
 		// отменить автоматические работы
 		cancelAutoTasks(task)
 
 		// критическая
-		if task.Priority == string(models.TASK_PRIORITY_CRITICAL) {
+		if task.Priority == models.TASK_PRIORITY_CRITICAL {
 			cancelManualTasksWithNormalPriority(task)
 		}
 	}
@@ -125,9 +135,6 @@ func handleAddTaskRequest(w http.ResponseWriter, r *http.Request) {
 		writeResponse(w, response)
 		return
 	}
-
-	var windows []models.MaintenanceWindows
-	db.Debug().Model(models.MaintenanceWindows{}).Where("aviability_zone = ?", task.AviabilityZone).Find(&windows)
 
 	if !checkWindowMaintenance(task, windows) {
 		w.WriteHeader(http.StatusBadRequest)
@@ -164,6 +171,7 @@ func validAZ(task *models.Task) bool {
 
 func getAvaiableWindows(newtTask *models.Task, windows []models.MaintenanceWindows, tasks []models.Task) []time.Time {
 	// TODO: отсортировать задачи по времени окончания
+	// TODO: учитывать дедлайн задачи
 	result := []time.Time{}
 	for i, task := range tasks {
 		if i == 0 {
