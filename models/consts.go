@@ -12,5 +12,7 @@ const (
 
 const (
 	TASK_STATUS_WAITING  = "waiting"
+	TASK_STATUS_RUNNING  = "running"
+	TASK_STATUS_FINISHED = "finished"
 	TASK_STATUS_CANCELED = "canceled"
 )

@@ -31,6 +31,12 @@ func main() {
 	r.Get("/*", httpSwagger.WrapHandler)
 
 	initDB()
+	go func() {
+		for range time.Tick(1 * time.Second) {
+			updateTaskStatuses()
+		}
+	}()
+
 	fmt.Println("Open http://localhost:3000")
 	http.ListenAndServe(":3000", r)
 }
@@ -264,4 +270,18 @@ func handleRootRequest(w http.ResponseWriter, r *http.Request) {
 	r2.RequestURI = r.RequestURI + "index.html"
 
 	httpSwagger.WrapHandler(w, r2)
+}
+
+func updateTaskStatuses() {
+	db.Debug().Model(&models.Task{}).Where(
+		"status = ? AND start_time <= ?",
+		models.TASK_STATUS_WAITING,
+		time.Now(),
+	).Update("status", models.TASK_STATUS_RUNNING)
+
+	db.Debug().Model(&models.Task{}).Where(
+		"status = ? AND finish_time <= ?",
+		models.TASK_STATUS_RUNNING,
+		time.Now(),
+	).Update("status", models.TASK_STATUS_FINISHED)
 }
