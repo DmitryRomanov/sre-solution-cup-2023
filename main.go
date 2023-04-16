@@ -71,8 +71,8 @@ func initDB() {
 // @Tags     tasks
 // @Produce  json
 // @Param request body dto.AddTaskRequest true "task info"
-// @Success 200 {object} dto.AddTaskResponse
-// @Success 400 {object} dto.AddTaskResponse
+// @Success 200 {object} dto.MessageResponse
+// @Success 400 {object} dto.MessageResponse
 // @Router /task/add [post]
 func handleAddTaskRequest(w http.ResponseWriter, r *http.Request) {
 	var p dto.AddTaskRequest
