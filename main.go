@@ -185,6 +185,7 @@ func checkWindowMaintenance(task *models.Task, windows []models.MaintenanceWindo
 				existsAtEnd = true
 			}
 		}
+		// TODO: может быть разрыв после начала суток
 
 		return existsAtBegin && existsAtEnd
 	}
@@ -219,7 +220,7 @@ func writeResponse(w http.ResponseWriter, object interface{}) {
 // @Router /task/list [get]
 func handleTasksListRequest(w http.ResponseWriter, r *http.Request) {
 	var tasks []models.Task
-	db.Debug().Where("status = ?", models.TASK_STATUS_WAITING).Find(&tasks)
+	db.Debug().Where("status IN (?,?)", models.TASK_STATUS_WAITING, models.TASK_STATUS_RUNNING).Find(&tasks)
 	writeResponse(w, tasks)
 }
 
