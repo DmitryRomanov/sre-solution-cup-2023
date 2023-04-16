@@ -48,7 +48,10 @@ func initDB() {
 		panic("Failed to open the SQLite database.")
 	}
 
-	db.AutoMigrate(&models.Task{}, &models.AviabilityZone{}, &models.CancelReason{})
+	db.AutoMigrate(
+		&models.Task{}, &models.AviabilityZone{}, &models.CancelReason{},
+		&models.MaintenanceWindows{},
+	)
 
 	azs := []models.AviabilityZone{
 		{Name: "msk-1a", DataCenter: "msk-1", BlockedForAutomatedTask: false},
@@ -65,6 +68,23 @@ func initDB() {
 	}
 
 	db.Create(azs)
+
+	maintenanceWindows := []models.MaintenanceWindows{
+		{AviabilityZone: "msk-1a", Start: 0, End: 5},
+		{AviabilityZone: "msk-1a", Start: 21, End: 24},
+
+		{AviabilityZone: "msk-1b", Start: 0, End: 24},
+		{AviabilityZone: "msk-1c", Start: 23, End: 24},
+
+		{AviabilityZone: "msk-2a", Start: 0, End: 6},
+		{AviabilityZone: "msk-2b", Start: 0, End: 6},
+		{AviabilityZone: "msk-2c", Start: 0, End: 6},
+
+		{AviabilityZone: "nsk-1a", Start: 4, End: 10},
+		{AviabilityZone: "nsk-1b", Start: 4, End: 10},
+		{AviabilityZone: "nsk-1c", Start: 4, End: 10},
+	}
+	db.Create(maintenanceWindows)
 }
 
 // @Summary Добавить задачу
@@ -103,6 +123,10 @@ func handleAddTaskRequest(w http.ResponseWriter, r *http.Request) {
 	task.Type = p.Type
 	task.Priority = p.Priority
 
+	duration := time.Duration(task.Duration-1) * time.Second
+	finishTime := task.StartTime.Add(duration)
+	task.FinishTime = finishTime
+
 	mu.Lock()
 	defer mu.Unlock()
 
@@ -140,6 +164,18 @@ func handleAddTaskRequest(w http.ResponseWriter, r *http.Request) {
 		response := new(dto.MessageResponse)
 		response.Success = false
 		response.Message = "Зона доступности недоступна"
+		writeResponse(w, response)
+		return
+	}
+
+	var windows []models.MaintenanceWindows
+	db.Debug().Model(models.MaintenanceWindows{}).Where("aviability_zone = ?", task.AviabilityZone).Find(&windows)
+
+	if !checkWindowMaintenance(task, windows) {
+		w.WriteHeader(http.StatusBadRequest)
+		response := new(dto.MessageResponse)
+		response.Success = false
+		response.Message = "Задача не поподает в окно обслуживания"
 		writeResponse(w, response)
 		return
 	}
@@ -202,6 +238,36 @@ func validAZ(task *models.Task) bool {
 		}
 
 		return true
+	}
+
+	return false
+}
+
+func checkWindowMaintenance(task *models.Task, windows []models.MaintenanceWindows) bool {
+	for _, window := range windows {
+		if task.StartTime.Format(time.DateOnly) == task.FinishTime.Format(time.DateOnly) {
+			if task.StartTime.Hour() >= window.Start && task.FinishTime.Hour() <= window.End {
+				return true
+			}
+		}
+	}
+
+	if task.FinishTime.Day()-task.StartTime.Day() == 1 && task.FinishTime.Sub(task.StartTime).Hours() < 12 {
+		//разные сутки
+		existsAtBegin := false
+		existsAtEnd := false
+
+		//проверить разрыв в сутках
+		for _, window := range windows {
+			if window.Start == 0 {
+				existsAtBegin = true
+			}
+			if window.End == 24 {
+				existsAtEnd = true
+			}
+		}
+
+		return existsAtBegin && existsAtEnd
 	}
 
 	return false
