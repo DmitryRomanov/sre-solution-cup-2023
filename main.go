@@ -162,6 +162,46 @@ func validAZ(task *models.Task) bool {
 	return false
 }
 
+func getAvaiableWindows(newtTask *models.Task, windows []models.MaintenanceWindows, tasks []models.Task) []time.Time {
+	// TODO: отсортировать задачи по времени окончания
+	result := []time.Time{}
+	for i, task := range tasks {
+		if i == 0 {
+			for _, window := range windows {
+				duration := time.Duration(newtTask.Duration) * time.Second
+				finishTime := newtTask.StartTime.Add(duration)
+
+				windowStartTime := time.Date(newtTask.StartTime.Year(), newtTask.StartTime.Month(), newtTask.StartTime.Day(), window.Start, 0, 0, newtTask.StartTime.Nanosecond(), newtTask.StartTime.Location())
+
+				if window.Start >= newtTask.StartTime.Hour() && finishTime.Hour() <= window.End {
+					result = append(result, windowStartTime)
+				}
+			}
+		}
+		if i > 0 {
+			currentStartTime := task.StartTime
+			prevFinishTime := tasks[i-1].FinishTime
+			if currentStartTime.Sub(prevFinishTime).Seconds() > float64(newtTask.Duration) {
+				result = append(result, tasks[i-1].FinishTime.Add(time.Second))
+			}
+		}
+
+		if i == len(tasks)-1 {
+			// после последней задачи в окне осталось окно
+			for _, window := range windows {
+				lastTaskFinishTime := tasks[i].FinishTime
+
+				windowFinishTime := time.Date(lastTaskFinishTime.Year(), lastTaskFinishTime.Month(), lastTaskFinishTime.Day(), window.End, 0, 0, lastTaskFinishTime.Nanosecond(), lastTaskFinishTime.Location())
+
+				if windowFinishTime.Sub(lastTaskFinishTime).Seconds() > float64(newtTask.Duration) {
+					result = append(result, lastTaskFinishTime.Add(time.Second))
+				}
+			}
+		}
+	}
+	return result
+}
+
 func checkWindowMaintenance(task *models.Task, windows []models.MaintenanceWindows) bool {
 	for _, window := range windows {
 		if task.StartTime.Format(time.DateOnly) == task.FinishTime.Format(time.DateOnly) {
