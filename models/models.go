@@ -75,3 +75,9 @@ type CancelReason struct {
 	CancelTime time.Time `json:"cancel_time"`
 	Reason     string    `json:"reason"`
 }
+
+type MaintenanceWindows struct {
+	Start          int
+	End            int
+	AviabilityZone string `json:"aviability_zone"`
+}

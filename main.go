@@ -48,7 +48,10 @@ func initDB() {
 		panic("Failed to open the SQLite database.")
 	}
 
-	db.AutoMigrate(&models.Task{}, &models.AviabilityZone{}, &models.CancelReason{})
+	db.AutoMigrate(
+		&models.Task{}, &models.AviabilityZone{}, &models.CancelReason{},
+		&models.MaintenanceWindows{},
+	)
 
 	azs := []models.AviabilityZone{
 		{Name: "msk-1a", DataCenter: "msk-1", BlockedForAutomatedTask: false},
@@ -65,6 +68,23 @@ func initDB() {
 	}
 
 	db.Create(azs)
+
+	maintenanceWindows := []models.MaintenanceWindows{
+		{AviabilityZone: "msk-1a", Start: 0, End: 5},
+		{AviabilityZone: "msk-1a", Start: 21, End: 24},
+
+		{AviabilityZone: "msk-1b", Start: 0, End: 24},
+		{AviabilityZone: "msk-1c", Start: 23, End: 24},
+
+		{AviabilityZone: "msk-2a", Start: 0, End: 6},
+		{AviabilityZone: "msk-2b", Start: 0, End: 6},
+		{AviabilityZone: "msk-2c", Start: 0, End: 6},
+
+		{AviabilityZone: "nsk-1a", Start: 4, End: 10},
+		{AviabilityZone: "nsk-1b", Start: 4, End: 10},
+		{AviabilityZone: "nsk-1c", Start: 4, End: 10},
+	}
+	db.Create(maintenanceWindows)
 }
 
 // @Summary Добавить задачу
